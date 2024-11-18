@@ -1,0 +1,117 @@
+name: shoeniverse
+description: "A Flutter project for Shoeniverse, featuring a custom font and gradient UI."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# Version and build number
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  carousel_slider: ^5.0.0
+  curved_navigation_bar: ^1.0.6
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.3
+  cloud_firestore: ^5.5.0
+  intl: ^0.17.0
+  provider: ^6.0.0
+  future_progress_dialog: ^0.2.1
+  http: ^1.2.2
+  animations: ^2.0.7
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: "^0.14.1"
+
+flutter_launcher_icons:
+  image_path: "images/shoeshit.png"
+  #image_path_android: "assests/images/android/ShoeniverseIcon.png"
+  #image_path_ios: "assests/images/ios/ShoeniverseIcon.png"
+  android: true
+  ios: true
+  min_sdk_android: 34
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - images/GetStartShoes.png
+    - images/Recblack.png
+    - images/Recbrown.png
+    - images/Recwhite.png
+    - images/Profile.png
+    - images/VectorGray.png
+    - images/VectorWhite.png
+    - images/Group 115 1.png
+    - images/defaultShoe.png
+    - images/rotatingcircle.png
+    - images/loadingscreen.png
+    - images/loadingscreenlogo.png
+    - images/shoeshit.png
+
+
+    - dashimages/crs1.png
+    - dashimages/crs2.png
+    - dashimages/crs3.png
+    - dashimages/crs4.png
+    # LIFESTYLE
+    - dashimages/shoes1.png
+    - dashimages/shoes2.png
+    - dashimages/shoes3.png
+    - dashimages/shoes4.png
+    - dashimages/shoes5.png
+    - dashimages/shoes6.png
+    # DANCE
+    - dashimages/dance1.png
+    - dashimages/dance2.png
+    - dashimages/dance3.png
+    - dashimages/dance4.png
+    - dashimages/dance5.png
+    # RUNNING
+    - dashimages/run1.png
+    - dashimages/run2.png
+    - dashimages/run3.png
+    - dashimages/run4.png
+    - dashimages/run5.png
+    - dashimages/run6.png
+    # BASKETBALL
+    - dashimages/bas1.png
+    - dashimages/bas2.png
+    - dashimages/bas3.png
+    - dashimages/bas4.png
+    - dashimages/bas5.png
+    - dashimages/bas6.png
+    # FOOTBALL
+    - dashimages/foot1.png
+    - dashimages/foot2.png
+    - dashimages/foot3.png
+    - dashimages/foot4.png
+    - dashimages/foot5.png
+    - dashimages/foot6.png
+
+    # SEARCHBAR
+    - Searchbarimages/running.png
+    - Searchbarimages/basketball.png
+    - Searchbarimages/dance.png
+    - Searchbarimages/football.png
+
+
+  fonts:
+    - family: Russo
+      fonts:
+        - asset: fonts/Russo.ttf
+    - family: Abel
+      fonts:
+        - asset: fonts/Abel.ttf
+        - asset: fonts/abel-regular.ttf
+
+    - family: Squada
+      fonts:
+        - asset: fonts/Squada.ttf

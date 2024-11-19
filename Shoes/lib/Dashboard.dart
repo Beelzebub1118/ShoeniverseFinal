@@ -1,5 +1,7 @@
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'details.dart'; // Import Details.dart
 import 'Searchbar.dart'; // Import Searchbar.dart
@@ -11,9 +13,100 @@ class Dashboard extends StatefulWidget {
 
   @override
   _DashboardState createState() => _DashboardState();
-}
 
+
+}
 class _DashboardState extends State<Dashboard> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await migrateProductsToGlobalCollection();
+    });
+  }
+
+
+
+
+  Future<void> migrateProductsToGlobalCollection() async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+    try {
+      print('Starting migration...');
+
+      final usersSnapshot = await firestore.collection('users').get();
+      print('Fetched ${usersSnapshot.docs.length} users.');
+
+      for (var userDoc in usersSnapshot.docs) {
+        final userId = userDoc.id;
+
+        final productsSnapshot = await firestore
+            .collection('users')
+            .doc(userId)
+            .collection('products')
+            .get();
+
+        if (productsSnapshot.docs.isEmpty) {
+          print('No products for user $userId. Skipping...');
+          continue;
+        }
+
+        for (var productDoc in productsSnapshot.docs) {
+          final productData = productDoc.data();
+          final productId = productDoc.id;
+
+          if (productData.isNotEmpty) {
+            // Use a transaction to ensure atomic operation
+            await firestore.runTransaction((transaction) async {
+              final querySnapshot = await firestore
+                  .collection('products')
+                  .where('userId', isEqualTo: userId)
+                  .where('productId', isEqualTo: productId)
+                  .get();
+
+              if (querySnapshot.docs.isEmpty) {
+                transaction.set(
+                  firestore.collection('products').doc(),
+                  {
+                    ...productData,
+                    'userId': userId,
+                    'productId': productId,
+                  },
+                );
+                print('Migrated product: $productId');
+              } else {
+                print('Product already exists globally: $productId. Skipping...');
+              }
+            });
+          }
+        }
+      }
+      print('Migration complete!');
+    } catch (e) {
+      print('Error during migration: $e');
+    }
+  }
+
+
+
+
+
+
+  Stream<List<Map<String, dynamic>>> fetchGlobalProducts() {
+    return FirebaseFirestore.instance.collection('products').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'image': data['imageUrl'] ?? 'images/defaultShoe.png',
+          'title': data['name'] ?? 'Unknown Product',
+          'price': '₱${data['price'] ?? 0}',
+          'category': data['category'] ?? '',
+        };
+      }).toList();
+    });
+
+  }
+
   int _selectedIndex = 0; // Track the selected index for bottom navigation
   int _selectedCategoryIndex = 0; // Track selected category in carousel
   bool showCategoryItemsOnly = false; // Track if only category items should be shown
@@ -166,8 +259,8 @@ class _DashboardState extends State<Dashboard> {
 
   Widget _buildFullView() {
     return CustomScrollView(
-
       slivers: [
+        // Carousel Slider for main banners
         SliverToBoxAdapter(
           child: CarouselSlider(
             options: CarouselOptions(
@@ -188,6 +281,7 @@ class _DashboardState extends State<Dashboard> {
           child: SizedBox(height: 1),
         ),
 
+        // Carousel Slider for category selection
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(bottom: 20.0),
@@ -240,6 +334,8 @@ class _DashboardState extends State<Dashboard> {
             ),
           ),
         ),
+
+        // Category Header with "See All" Button
         SliverAppBar(
           pinned: true,
           backgroundColor: const Color(0xFFececec),
@@ -274,21 +370,56 @@ class _DashboardState extends State<Dashboard> {
         const SliverToBoxAdapter(
           child: SizedBox(height: 1.0),
         ),
+
+        // Grid of items (static + Firebase combined)
         SliverPadding(
           padding: const EdgeInsets.all(16.0),
-          sliver: SliverGrid.count(
-            crossAxisCount: 2,
-            childAspectRatio: 0.5,
-            mainAxisSpacing: 7.0,
-            crossAxisSpacing: 7.0,
-            children: categoryItems[_selectedCategoryIndex]!
-                .map((item) => _buildGridItem(item['image']!, item['title']!, item['price']!))
-                .toList(),
+          sliver: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: fetchGlobalProducts(), // Fetch global products
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverToBoxAdapter(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return SliverToBoxAdapter(
+                  child: Center(child: Text('Error: ${snapshot.error}')),
+                );
+              }
+
+              final globalProducts = snapshot.data ?? [];
+              if (globalProducts.isEmpty) {
+                return const SliverToBoxAdapter(
+                  child: Center(child: Text('No products available.')),
+                );
+              }
+
+              final filteredGlobalProducts = globalProducts.where((item) =>
+              item['category'].toString().toUpperCase() ==
+                  ['LIFESTYLE', 'DANCE', 'RUNNING', 'BASKETBALL', 'FOOTBALL'][_selectedCategoryIndex]).toList();
+
+              final combinedItems = [
+                ...categoryItems[_selectedCategoryIndex]!,
+                ...filteredGlobalProducts,
+              ];
+
+              return SliverGrid.count(
+                crossAxisCount: 2,
+                childAspectRatio: 0.5,
+                mainAxisSpacing: 7.0,
+                crossAxisSpacing: 7.0,
+                children: combinedItems
+                    .map((item) => _buildGridItem(item['image']!, item['title']!, item['price']!))
+                    .toList(),
+              );
+            },
           ),
         ),
       ],
     );
   }
+
 
   Widget _buildCategoryItemsOnlyView() {
     return SingleChildScrollView(

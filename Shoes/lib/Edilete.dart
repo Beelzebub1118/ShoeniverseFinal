@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'EditProduct.dart'; // Import the EditProductPage
 
 class EditeletePage extends StatefulWidget {
@@ -20,17 +21,28 @@ class _EditeletePageState extends State<EditeletePage> {
     _fetchProducts(); // Fetch products when the page is loaded
   }
 
-  // Fetch products from Firestore
+  // Fetch products from Firestore under the current user's collection
   Future<void> _fetchProducts() async {
     try {
-      final snapshot =
-      await FirebaseFirestore.instance.collection('products').get();
+      // Get the current user's ID
+      final String userId = FirebaseAuth.instance.currentUser!.uid;
+
+      // Query the products inside the user's 'products' collection
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('products')
+          .get();
+
       setState(() {
-        products = snapshot.docs;
+        products = snapshot.docs; // All documents from the products collection
         isLoading = false;
       });
     } catch (e) {
       print('Error fetching products: $e');
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -67,14 +79,22 @@ class _EditeletePageState extends State<EditeletePage> {
 
     if (confirm == true) {
       try {
+        // Get the current user's ID
+        final String userId = FirebaseAuth.instance.currentUser!.uid;
+
+        // Delete the product from the user's collection
         await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
             .collection('products')
             .doc(selectedProductId)
             .delete();
+
         setState(() {
           products.removeWhere((product) => product.id == selectedProductId);
           selectedProductId = null; // Clear the selection
         });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Product deleted successfully!')),
         );
@@ -88,14 +108,16 @@ class _EditeletePageState extends State<EditeletePage> {
   }
 
   // Navigate to EditProductPage
-  void _navigateToEditProduct() {
-    if (selectedProductId == null) return; // Prevent navigation if no item selected
+  void _navigateToEditProduct(DocumentSnapshot product) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const EditProductPage(),
+        builder: (context) => EditProductPage(product: product),
       ),
-    );
+    ).then((_) {
+      // Refresh the product list after returning
+      _fetchProducts();
+    });
   }
 
   @override
@@ -111,20 +133,21 @@ class _EditeletePageState extends State<EditeletePage> {
           },
         ),
         title: const Text(
-          'LIFESTYLE',
+          'PRODUCTS',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
+          : products.isEmpty
+          ? const Center(child: Text('No products found.'))
           : Column(
         children: [
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(10),
-              gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
@@ -133,8 +156,8 @@ class _EditeletePageState extends State<EditeletePage> {
               itemCount: products.length,
               itemBuilder: (context, index) {
                 final product = products[index];
-                final name = product['name'];
-                final imageUrl = product['imageUrl'];
+                final name = product['name'] ?? 'No Name';
+                final imageUrl = product['imageUrl'] ?? '';
                 final productId = product.id;
 
                 return GestureDetector(
@@ -147,8 +170,7 @@ class _EditeletePageState extends State<EditeletePage> {
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                     transform: selectedProductId == productId
-                        ? Matrix4.identity() *
-                        Matrix4.diagonal3Values(1.05, 1.05, 1.0)
+                        ? Matrix4.identity() * Matrix4.diagonal3Values(1.05, 1.05, 1.0)
                         : Matrix4.identity(),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
@@ -175,17 +197,15 @@ class _EditeletePageState extends State<EditeletePage> {
                         Container(
                           height: 190,
                           decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(10)),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
                             color: Colors.grey[200],
                           ),
                           child: Center(
-                            child: imageUrl.isNotEmpty
-                                ? const Icon(Icons.broken_image,
-                                size: 50, color: Colors.grey)
-                                : const Icon(Icons.broken_image,
-                                size: 50, color: Colors.grey),
+                            child: imageUrl == 'images/defaultShoe.png'
+                                ? Image.asset(imageUrl, fit: BoxFit.cover) // Use asset for default image
+                                : Image.network(imageUrl, fit: BoxFit.cover), // Load network image
                           ),
+
                         ),
                         Padding(
                           padding: const EdgeInsets.all(8.0),
@@ -206,8 +226,7 @@ class _EditeletePageState extends State<EditeletePage> {
             ),
           ),
           Container(
-            padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             child: Row(
               children: [
                 Expanded(
@@ -230,12 +249,15 @@ class _EditeletePageState extends State<EditeletePage> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: selectedProductId != null
-                        ? _navigateToEditProduct
-                        : null, // Disable if no item is selected
+                        ? () {
+                      final selectedProduct = products.firstWhere(
+                            (product) => product.id == selectedProductId,
+                      );
+                      _navigateToEditProduct(selectedProduct);
+                    }
+                        : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: selectedProductId != null
-                          ? Colors.black
-                          : Colors.grey, // Change color when disabled
+                      backgroundColor: selectedProductId != null ? Colors.black : Colors.grey,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -243,6 +265,7 @@ class _EditeletePageState extends State<EditeletePage> {
                     child: const Text('EDIT'),
                   ),
                 ),
+
               ],
             ),
           ),

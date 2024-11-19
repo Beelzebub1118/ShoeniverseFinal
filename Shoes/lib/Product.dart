@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProductPage extends StatefulWidget {
   const ProductPage({Key? key}) : super(key: key);
@@ -26,52 +27,65 @@ class _ProductPageState extends State<ProductPage> {
     'DANCE',
     'RUNNING',
     'BASKETBALL',
-    'FOOTBALL'
+    'FOOTBALL',
   ];
 
+  bool isSubmitting = false; // Prevents multiple submissions
+
   // Function to handle form submission
-  Future<void> _submitProduct() async {
+  Future<void> _submitProduct(String userId) async {
     String name = nameController.text;
     String category = selectedCategory ?? 'LIFESTYLE';
     String size = selectedSize ?? 'US 10';
     String price = priceController.text;
     String stock = stockController.text;
     String description = descriptionController.text;
-    String imageUrl = 'images/defaultShoe.png'; // Static image URL
+    String imageUrl = 'images/defaultShoe.png'; // Default image URL
 
     // Add shipping options
     List<String> shippingOptions = [];
     if (isCashOnDelivery) shippingOptions.add("Cash on Delivery");
     if (isGcash) shippingOptions.add("G-Cash");
 
-    // Saving data to Firestore
-    await FirebaseFirestore.instance.collection('products').add({
-      'name': name,
-      'category': category,
-      'size': size,
-      'price': price,
-      'stockQuantity': stock,
-      'description': description,
-      'imageUrl': imageUrl, // Static image URL
-      'shippingOptions': shippingOptions,
-    });
+    try {
+      // Saving data to Firestore under the user's products collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('products')
+          .add({
+        'name': name,
+        'category': category,
+        'size': size,
+        'price': price,
+        'stockQuantity': stock,
+        'description': description,
+        'imageUrl': imageUrl,
+        'shippingOptions': shippingOptions,
+      });
 
-    // Show success and clear the form
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Product added successfully!')),
-    );
+      // Show success and clear the form
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product added successfully!')),
+      );
 
-    // Clear fields
-    nameController.clear();
-    priceController.clear();
-    stockController.clear();
-    descriptionController.clear();
-    setState(() {
-      selectedCategory = null;
-      selectedSize = null;
-      isCashOnDelivery = false;
-      isGcash = false;
-    });
+      // Clear fields
+      nameController.clear();
+      priceController.clear();
+      stockController.clear();
+      descriptionController.clear();
+      setState(() {
+        selectedCategory = null;
+        selectedSize = null;
+        isCashOnDelivery = false;
+        isGcash = false;
+      });
+    } catch (e) {
+      // Handle errors
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
   }
 
   // Function to validate form inputs
@@ -95,7 +109,8 @@ class _ProductPageState extends State<ProductPage> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Incomplete Details'),
-          content: const Text('Please complete all required fields before submitting.'),
+          content:
+          const Text('Please complete all required fields before submitting.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -108,30 +123,35 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   // Show confirmation dialog
-  Future<void> _showConfirmationDialog() async {
-    final bool? confirm = await showDialog(
+  Future<void> _showConfirmationDialog(Function onConfirm) async {
+    bool hasConfirmed = false; // Scoped to this dialog only
+
+    await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Confirm Submission'),
-          content: const Text('Are you sure you want to submit the product details?'),
+          content: const Text(
+              'Are you sure you want to submit the product details?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false), // Cancel
               child: const Text('CANCEL'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true), // Confirm
+              onPressed: () {
+                if (!hasConfirmed) {
+                  hasConfirmed = true;
+                  Navigator.of(context).pop(true); // Confirm
+                  onConfirm(); // Execute the callback
+                }
+              },
               child: const Text('CONFIRM'),
             ),
           ],
         );
       },
     );
-
-    if (confirm == true) {
-      _submitProduct(); // Proceed with submission
-    }
   }
 
   @override
@@ -210,7 +230,8 @@ class _ProductPageState extends State<ProductPage> {
             const SizedBox(height: 20),
             const SectionTitle(title: 'PRICING & INVENTORY'),
             CustomTextField(hintText: 'Price:', controller: priceController),
-            CustomTextField(hintText: 'Stock Quantity:', controller: stockController),
+            CustomTextField(
+                hintText: 'Stock Quantity:', controller: stockController),
             const SizedBox(height: 20),
             const SectionTitle(title: 'DESCRIPTION'),
             CustomTextField(
@@ -249,11 +270,18 @@ class _ProductPageState extends State<ProductPage> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                 ),
-                onPressed: () {
+                onPressed: () async {
                   if (_validateInputs()) {
-                    _showConfirmationDialog(); // Show confirmation dialog if inputs are valid
+                    if (!isSubmitting) {
+                      setState(() => isSubmitting = true);
+                      String userId = FirebaseAuth.instance.currentUser!.uid;
+                      await _showConfirmationDialog(() async {
+                        await _submitProduct(userId);
+                        setState(() => isSubmitting = false);
+                      });
+                    }
                   } else {
-                    _showErrorDialog(); // Show error dialog if inputs are incomplete
+                    _showErrorDialog();
                   }
                 },
                 child: const Text(
@@ -303,7 +331,7 @@ class SectionTitle extends StatelessWidget {
 }
 
 // Custom Text Field Widget
-class CustomTextField extends StatefulWidget {
+class CustomTextField extends StatelessWidget {
   final String hintText;
   final int maxLines;
   final TextEditingController controller;
@@ -312,35 +340,15 @@ class CustomTextField extends StatefulWidget {
       : super(key: key);
 
   @override
-  _CustomTextFieldState createState() => _CustomTextFieldState();
-}
-
-class _CustomTextFieldState extends State<CustomTextField> {
-  late String _displayHint;
-
-  @override
-  void initState() {
-    super.initState();
-    _displayHint = widget.hintText;
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: Focus(
-        onFocusChange: (hasFocus) {
-          setState(() {
-            _displayHint = hasFocus ? '' : widget.hintText;
-          });
-        },
-        child: TextField(
-          controller: widget.controller,
-          maxLines: widget.maxLines,
-          decoration: InputDecoration(
-            hintText: _displayHint,
-            border: const OutlineInputBorder(),
-          ),
+      child: TextField(
+        controller: controller,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          hintText: hintText,
+          border: const OutlineInputBorder(),
         ),
       ),
     );

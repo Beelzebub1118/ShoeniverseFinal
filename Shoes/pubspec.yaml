@@ -32,6 +32,7 @@ dev_dependencies:
 
 flutter_launcher_icons:
   image_path: "images/shoeshit.png"
+
   #image_path_android: "assests/images/android/ShoeniverseIcon.png"
   #image_path_ios: "assests/images/ios/ShoeniverseIcon.png"
   android: true
@@ -55,7 +56,7 @@ flutter:
     - images/loadingscreen.png
     - images/loadingscreenlogo.png
     - images/shoeshit.png
-
+    - images/defaultShoe.png
 
     - dashimages/crs1.png
     - dashimages/crs2.png

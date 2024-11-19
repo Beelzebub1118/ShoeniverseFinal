@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shoeniverse/OrdersFromUsers.dart';
 import 'Product.dart'; // Import Product.dart
 import 'Edilete.dart'; // Import EditeletePage
@@ -17,6 +18,9 @@ class _SellerDashboardState extends State<SellerDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    // Get the current user's ID
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -42,7 +46,11 @@ class _SellerDashboardState extends State<SellerDashboard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('products').snapshots(),
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(userId)
+                      .collection('products')
+                      .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return _buildDashboardCard('-', 'PRODUCT'); // Placeholder while loading
@@ -106,6 +114,8 @@ class _SellerDashboardState extends State<SellerDashboard> {
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(userId)
                     .collection('products')
                     .where('category', isEqualTo: selectedCategory)
                     .snapshots(),
@@ -130,13 +140,13 @@ class _SellerDashboardState extends State<SellerDashboard> {
                     itemCount: products.length,
                     itemBuilder: (context, index) {
                       final product = products[index];
-                      final imageUrl = product['imageUrl'];
+                      final imageUrl = product['imageUrl'] ?? ''; // Default to empty string if imageUrl is missing
 
                       return _buildProductCard(
-                        product['name'],
-                        imageUrl.isNotEmpty
-                            ? const Icon(Icons.broken_image, size: 50, color: Colors.grey)
-                            : const Icon(Icons.broken_image, size: 50),
+                        product['name'] ?? 'No Name', // Default to 'No Name' if name is missing
+                        imageUrl.isNotEmpty && Uri.parse(imageUrl).isAbsolute
+                            ? Image.network(imageUrl, fit: BoxFit.cover) // Network image if valid URL
+                            : Image.asset('images/defaultShoe.png', fit: BoxFit.cover), // Default image if missing or invalid URL
                       );
                     },
                   );
@@ -217,7 +227,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
     );
   }
 
-  Widget _buildProductCard(String name, Icon imageIcon) {
+  Widget _buildProductCard(String name, Widget imageWidget) {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey),
@@ -228,7 +238,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
           Expanded(
             child: Container(
               alignment: Alignment.center,
-              child: imageIcon,
+              child: imageWidget,
             ),
           ),
           Padding(
